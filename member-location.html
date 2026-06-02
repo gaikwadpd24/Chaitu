@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Share Live Location</title>
+    <title>Share Location</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Your Firebase config
         const firebaseConfig = {
             apiKey: "AIzaSyDBLGdFzXkQBu4V9AQeO6R7C4LEo3DgAis",
             authDomain: "chaitanya-ab4ae.firebaseapp.com",
@@ -22,55 +21,74 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Get member ID from URL (?member=alex_chen)
         const urlParams = new URLSearchParams(window.location.search);
         const memberId = urlParams.get('member');
 
         if (!memberId) {
-            document.body.innerHTML = '<h3>Error: No member ID provided. Use ?member=your_id</h3>';
+            document.body.innerHTML = '<h3>Error: No member ID. Use ?member=your_id</h3>';
         } else {
             document.getElementById('member-name').innerText = memberId;
             
             let watchId = null;
+            let isSharing = false;
 
-            function startTracking() {
+            async function startTracking() {
+                if (isSharing) return;
                 if ("geolocation" in navigator) {
-                    // Watch position continuously
+                    // This line triggers the browser's permission popup
                     watchId = navigator.geolocation.watchPosition(
                         async (position) => {
                             const { latitude, longitude, accuracy } = position.coords;
-                            
-                            // Update Firestore document
                             const locationRef = doc(db, "liveLocations", memberId);
                             await setDoc(locationRef, {
                                 lat: latitude,
                                 lng: longitude,
                                 accuracy: accuracy,
-                                lastUpdated: serverTimestamp()
+                                lastUpdated: serverTimestamp(),
+                                hidden: false
                             });
-                            
-                            document.getElementById('status').innerHTML = '✅ Live: Updating location...';
-                            document.getElementById('coords').innerHTML = `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (${Math.round(accuracy)}m accuracy)`;
+                            document.getElementById('status').innerHTML = '✅ Updating location...';
+                            document.getElementById('coords').innerHTML = `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (${Math.round(accuracy)}m)`;
+                            document.getElementById('stopBtn').disabled = false;
                         },
                         (error) => {
-                            console.error(error);
                             let errorMsg = '❌ Error: ';
                             switch(error.code) {
-                                case error.PERMISSION_DENIED: errorMsg += 'Location permission denied.'; break;
-                                case error.POSITION_UNAVAILABLE: errorMsg += 'Location unavailable.'; break;
-                                case error.TIMEOUT: errorMsg += 'Location request timed out.'; break;
-                                default: errorMsg += 'An unknown error occurred.';
+                                case error.PERMISSION_DENIED: errorMsg += 'Permission denied.'; break;
+                                case error.POSITION_UNAVAILABLE: errorMsg += 'Unavailable.'; break;
+                                case error.TIMEOUT: errorMsg += 'Timeout.'; break;
+                                default: errorMsg += 'Unknown error.';
                             }
                             document.getElementById('status').innerHTML = errorMsg;
                         },
                         { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
                     );
+                    isSharing = true;
+                    document.getElementById('resultBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    document.getElementById('status').innerHTML = '📍 Sharing location...';
                 } else {
                     document.getElementById('status').innerHTML = '❌ Geolocation not supported.';
                 }
             }
 
-            document.getElementById('startBtn').addEventListener('click', startTracking);
+            async function stopTracking() {
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+                isSharing = false;
+                const locationRef = doc(db, "liveLocations", memberId);
+                await deleteDoc(locationRef);
+                document.getElementById('status').innerHTML = '🛑 Stopped. Location removed.';
+                document.getElementById('coords').innerHTML = '—';
+                document.getElementById('resultBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+
+            // Attach to "Result" button
+            document.getElementById('resultBtn').addEventListener('click', startTracking);
+            document.getElementById('stopBtn').addEventListener('click', stopTracking);
         }
     </script>
     <style>
@@ -101,7 +119,23 @@
             border-radius: 40px;
             font-size: 1rem;
             cursor: pointer;
-            margin: 16px 0;
+            margin: 8px;
+        }
+        button:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+        #resultBtn {
+            background: #059669;
+        }
+        #resultBtn:hover:not(:disabled) {
+            background: #047857;
+        }
+        #stopBtn {
+            background: #dc2626;
+        }
+        #stopBtn:hover:not(:disabled) {
+            background: #b91c1c;
         }
         .status {
             background: #eef2ff;
@@ -115,12 +149,12 @@
 </head>
 <body>
     <div class="card">
-        <h2>Result </h2>
         <p>Member: <strong id="member-name">—</strong></p>
-        <button id="startBtn">▶ Start Sharing Location</button>
-        <div class="status" id="status">⏳ Ready. Click start and allow location access.</div>
+        <button id="resultBtn">📊 Result</button>
+        <button id="stopBtn" disabled>⏹️ Stop Sharing</button>
+        <div class="status" id="status">Click "Result" to allow location sharing.</div>
         <div class="status" id="coords">—</div>
-        <p style="font-size: 12px; color: gray;">Keep this tab open for real-time tracking</p>
+        <p style="font-size: 12px; color: gray;">Click Result, then Allow location. Keep tab open for live tracking.</p>
     </div>
 </body>
 </html>
