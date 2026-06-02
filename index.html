@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Member Tracker · Centralized Analytics</title>
+  <!-- Firebase SDKs (v9 modular) -->
+  <script type="module">
+    // -------------------- YOUR FIREBASE CONFIG --------------------
+    const firebaseConfig = {
+      apiKey: "AIzaSyDBLGdFzXkQBu4V9AQeO6R7C4LEo3DgAis",
+      authDomain: "chaitanya-ab4ae.firebaseapp.com",
+      projectId: "chaitanya-ab4ae",
+      storageBucket: "chaitanya-ab4ae.firebasestorage.app",
+      messagingSenderId: "571927331069",
+      appId: "1:571927331069:web:a256783fa948228363fe94",
+      measurementId: "G-DTQSMNSG8E"
+    };
+    // ----------------------------------------------------------------
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    
+    // Make db available globally for other scripts
+    window.db = db;
+    window.collection = collection;
+    window.doc = doc;
+    window.getDoc = getDoc;
+    window.setDoc = setDoc;
+    window.updateDoc = updateDoc;
+    window.increment = increment;
+    window.getDocs = getDocs;
+    
+    console.log("Firebase initialized – central tracking active");
+  </script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: linear-gradient(145deg, #f6f8fc 0%, #eef2f7 100%);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+    }
+    .tracker-card {
+      max-width: 860px;
+      width: 100%;
+      background: rgba(255,255,255,0.96);
+      border-radius: 2.5rem;
+      box-shadow: 0 25px 45px -12px rgba(0,0,0,0.25);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.5);
+    }
+    .profile-header {
+      background: #0d1117;
+      padding: 1.8rem 2rem;
+      color: white;
+    }
+    .badge-link {
+      background: rgba(255,255,255,0.12);
+      border-radius: 40px;
+      padding: 0.3rem 1rem;
+      font-size: 0.75rem;
+      font-family: monospace;
+      display: inline-block;
+      margin-bottom: 1rem;
+    }
+    .profile-header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .member-id-badge {
+      background: #238636;
+      font-size: 0.85rem;
+      padding: 0.2rem 0.9rem;
+      border-radius: 30px;
+      font-family: monospace;
+    }
+    .member-handle {
+      color: #8b949e;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      border-left: 3px solid #f78166;
+      padding-left: 0.75rem;
+    }
+    .stats-panel {
+      padding: 1.8rem 2rem;
+      background: white;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .stat-block {
+      background: #f8fafc;
+      border-radius: 1.5rem;
+      padding: 1rem 1.5rem;
+      flex: 1;
+      min-width: 140px;
+      border: 1px solid #eef2f6;
+    }
+    .stat-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: #5b6e8c;
+    }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #0a2540;
+    }
+    .member-info {
+      padding: 1.8rem 2rem;
+      background: white;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .info-item {
+      background: #f9fbfd;
+      border-radius: 1.2rem;
+      padding: 0.8rem 1rem;
+      border: 1px solid #edf2f7;
+    }
+    .info-key {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #4a5b7a;
+    }
+    .info-value {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #0f172a;
+      margin-top: 0.2rem;
+    }
+    .admin-section {
+      background: #fef9e6;
+      border-top: 2px dashed #f0b429;
+      padding: 1rem 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .admin-section:hover {
+      background: #fef1cf;
+    }
+    .admin-dashboard {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1.5rem;
+      margin: 1rem;
+      border-radius: 1.5rem;
+      display: none;
+    }
+    .admin-dashboard table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .admin-dashboard th, .admin-dashboard td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+    .error-state {
+      background: #fff5f0;
+      padding: 1.8rem;
+      text-align: center;
+      border-radius: 1.2rem;
+      margin: 1.5rem;
+    }
+    button, .fake-link {
+      background: #0d1117;
+      color: white;
+      border: none;
+      padding: 0.4rem 1rem;
+      border-radius: 30px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    input {
+      padding: 0.4rem;
+      border-radius: 30px;
+      border: 1px solid #ccc;
+      margin: 0.5rem;
+    }
+    .footer-note {
+      padding: 1rem;
+      font-size: 0.7rem;
+      text-align: center;
+      color: #6c7a91;
+      background: #fafcff;
+      border-top: 1px solid #ecf3fa;
+    }
+    @media (max-width: 600px) {
+      .stats-panel { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div class="tracker-card" id="trackerRoot">
+  <div class="profile-header">
+    <div class="badge-link">🔗 CENTRAL TRACKING · REAL-TIME</div>
+    <h1>
+      <span>📡</span>
+      <span id="memberDisplayName">Member Portal</span>
+      <span class="member-id-badge" id="memberIdBadge">—</span>
+    </h1>
+    <div class="member-handle" id="memberHandleText">every click stored in your Firebase</div>
+  </div>
+  <div id="dynamicContent"><div class="stats-panel"><div class="stat-block">Loading tracking data...</div></div></div>
+  <div class="admin-section" id="adminToggleBtn">🔐 ADMIN: View all tracked members & clicks (password: track123)</div>
+  <div id="adminDashboard" class="admin-dashboard"></div>
+  <div class="footer-note">
+    ✅ One link per member · Centralized visit counters (Firebase) · Perfect for GitHub Pages<br>
+    👑 Owner can see every member's total clicks via the admin panel above.
+  </div>
+</div>
+
+<script type="module">
+  // --- MEMBER DATABASE (local profiles, can be extended) ---
+  const MEMBER_REGISTRY = {
+    "alex_chen": { fullName: "Alex Chen", role: "Frontend Lead", location: "SF", joinDate: "Jan 2023", bio: "Open source dev", github: "@alexchen", projects: 12 },
+    "jordan_ray": { fullName: "Jordan Ray", role: "DevOps", location: "Austin", joinDate: "Mar 2024", bio: "Cloud native", github: "@jrayops", projects: 8 },
+    "sam_kim": { fullName: "Sam Kim", role: "PM", location: "Seoul", joinDate: "Sep 2023", bio: "Data driven", github: "@samkim", projects: 5 }
+  };
+  const getDefaultMember = (id) => ({
+    fullName: id.replace(/[_-]/g, ' ').replace(/\b\w/g, l=>l.toUpperCase()) || "Community Member",
+    role: "Collaborator", location: "Global", joinDate: new Date().getFullYear(), bio: "Active member", github: `@${id}`, projects: Math.floor(Math.random()*10)+1
+  });
+
+  // Helper: get member profile
+  function getMemberProfile(memberId) {
+    return MEMBER_REGISTRY[memberId] ? { ...MEMBER_REGISTRY[memberId] } : getDefaultMember(memberId);
+  }
+
+  // --- CENTRAL TRACKING (Firebase) ---
+  async function trackMemberVisit(memberId) {
+    if (!memberId || !window.db) return null;
+    const memberRef = doc(window.db, "memberStats", memberId);
+    const docSnap = await getDoc(memberRef);
+    const now = new Date().toISOString();
+    if (!docSnap.exists()) {
+      // First visit ever
+      await setDoc(memberRef, {
+        visitCount: 1,
+        firstVisit: now,
+        lastVisit: now,
+        memberId: memberId
+      });
+      return { visitCount: 1, firstVisit: now, lastVisit: now };
+    } else {
+      // Increment
+      await updateDoc(memberRef, {
+        visitCount: increment(1),
+        lastVisit: now
+      });
+      const updated = await getDoc(memberRef);
+      return updated.data();
+    }
+  }
+
+  async function getMemberStats(memberId) {
+    if (!memberId || !window.db) return null;
+    const memberRef = doc(window.db, "memberStats", memberId);
+    const snap = await getDoc(memberRef);
+    return snap.exists() ? snap.data() : null;
+  }
+
+  // --- RENDER PUBLIC PAGE (member view) ---
+  async function renderMemberView(memberId) {
+    const container = document.getElementById('dynamicContent');
+    const memberDisplay = document.getElementById('memberDisplayName');
+    const badgeSpan = document.getElementById('memberIdBadge');
+    const handleSpan = document.getElementById('memberHandleText');
+    const currentUrl = window.location.href.split('?')[0];
+
+    if (!memberId) {
+      container.innerHTML = `<div class="error-state">
+        <h3>🔍 No member selected</h3>
+        <p>Use a link like:<br/><code>${currentUrl}?member=alex_chen</code></p>
+        <button id="demoBtn">Try alex_chen</button>
+      </div>`;
+      document.getElementById('demoBtn')?.addEventListener('click',()=>{ window.location.href = currentUrl+"?member=alex_chen"; });
+      memberDisplay.innerText = "No Member";
+      badgeSpan.innerText = "—";
+      handleSpan.innerText = "Add ?member=ID to start tracking";
+      return;
+    }
+
+    // Show loading
+    container.innerHTML = `<div class="stats-panel"><div class="stat-block">⏳ Recording visit...</div></div>`;
+    
+    // 1) Central tracking increment
+    let trackingData = await trackMemberVisit(memberId);
+    if (!trackingData) trackingData = { visitCount: '?', firstVisit: 'error', lastVisit: 'error' };
+    
+    // 2) Member profile
+    const profile = getMemberProfile(memberId);
+    memberDisplay.innerText = profile.fullName;
+    badgeSpan.innerText = `@${memberId}`;
+    handleSpan.innerText = `${profile.github} · tracked in Firebase (owner sees all)`;
+    
+    // 3) Build stats + info panels
+    const statsHtml = `
+      <div class="stat-block"><div class="stat-label">📊 TOTAL CLICKS (global)</div><div class="stat-value">${trackingData.visitCount}</div><div class="stat-sub">centralized counter</div></div>
+      <div class="stat-block"><div class="stat-label">🕒 LAST SEEN</div><div class="stat-value" style="font-size:1rem;">${new Date(trackingData.lastVisit).toLocaleString()}</div><div class="stat-sub">owner sees all history</div></div>
+      <div class="stat-block"><div class="stat-label">🌟 FIRST TRACK</div><div class="stat-value" style="font-size:0.9rem;">${new Date(trackingData.firstVisit).toDateString()}</div></div>
+    `;
+    const infoHtml = `
+      <div class="info-title">📋 MEMBER PROFILE</div>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-key">Full name</div><div class="info-value">${profile.fullName}</div></div>
+        <div class="info-item"><div class="info-key">Role</div><div class="info-value">${profile.role}</div></div>
+        <div class="info-item"><div class="info-key">Location</div><div class="info-value">${profile.location}</div></div>
+        <div class="info-item"><div class="info-key">GitHub</div><div class="info-value">${profile.github}</div></div>
+        <div class="info-item"><div class="info-key">Bio</div><div class="info-value">${profile.bio}</div></div>
+      </div>
+    `;
+    container.innerHTML = `<div class="stats-panel">${statsHtml}</div><div class="member-info">${infoHtml}</div>`;
+  }
+
+  // --- ADMIN DASHBOARD (owner view: all members & their clicks) ---
+  async function loadAdminDashboard() {
+    const adminDiv = document.getElementById('adminDashboard');
+    if (!window.db) {
+      adminDiv.innerHTML = "<p>⚠️ Firebase not configured. Please set your firebaseConfig.</p>";
+      adminDiv.style.display = "block";
+      return;
+    }
+    try {
+      const querySnapshot = await getDocs(collection(window.db, "memberStats"));
+      let members = [];
+      querySnapshot.forEach(doc => {
+        members.push({ id: doc.id, ...doc.data() });
+      });
+      if (members.length === 0) {
+        adminDiv.innerHTML = "<p>📭 No tracking data yet. Share some member links first.</p>";
+      } else {
+        let tableHtml = `<table><thead><tr><th>Member ID</th><th>Total Clicks</th><th>First Visit</th><th>Last Visit</th></tr></thead><tbody>`;
+        members.forEach(m => {
+          tableHtml += `<tr>
+            <td><strong>${m.id}</strong></td>
+            <td>${m.visitCount}</td>
+            <td>${new Date(m.firstVisit).toLocaleDateString()}</td>
+            <td>${new Date(m.lastVisit).toLocaleString()}</td>
+          </tr>`;
+        });
+        tableHtml += `</tbody></table><p style="margin-top:1rem;">✅ Every click from any visitor is stored here (centralized).</p>`;
+        adminDiv.innerHTML = tableHtml;
+      }
+    } catch (err) {
+      adminDiv.innerHTML = `<p>❌ Error loading admin data: ${err.message}. Check Firebase rules (test mode).</p>`;
+    }
+    adminDiv.style.display = "block";
+  }
+
+  // --- Admin toggle (simple password) ---
+  let adminOpen = false;
+  document.getElementById('adminToggleBtn').addEventListener('click', () => {
+    if (adminOpen) {
+      document.getElementById('adminDashboard').style.display = "none";
+      adminOpen = false;
+      return;
+    }
+    const pwd = prompt("Enter admin password to view all member tracking data:", "track123");
+    if (pwd === "track123") {
+      loadAdminDashboard();
+      adminOpen = true;
+    } else if (pwd !== null) {
+      alert("Wrong password. Access denied.");
+    }
+  });
+
+  // --- MAIN: read URL param & render ---
+  function init() {
+    const params = new URLSearchParams(window.location.search);
+    const memberId = params.get('member');
+    renderMemberView(memberId);
+  }
+  init();
+  window.addEventListener('popstate', init);
+</script>
+</body>
+</html>
